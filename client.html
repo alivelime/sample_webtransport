@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <title>WebTransport over HTTP/3 client</title>
+  <meta charset="utf-8">
+  <script src="client.js"></script>
+  <link rel="stylesheet" href="client.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <body>
+  <div id="top">
+    <div id="explanation">
+      This is echo test.
+    </div>
+    <div id="tool">
+    <h1>WebTransport over HTTP/3 client</h1>
+    <div>
+      <h2>Establish WebTransport connection</h2>
+      <div class="input-line">
+      <label for="url">URL:</label>
+      <input type="text" name="url" id="url"
+             value="https://localhost:4433/counter">
+      <input type="button" id="connect" value="Connect" onclick="connect()">
+      </div>
+    </div>
+    <div>
+      <h2>Send data over WebTransport</h2>
+      <form name="sending">
+      <textarea name="data" id="data"></textarea>
+      <div>
+        <input type="radio" name="sendtype" value="datagram"
+               id="datagram" checked>
+        <label for="datagram">Send a datagram</label>
+      </div>
+      <div>
+        <input type="radio" name="sendtype" value="unidi" id="unidi-stream">
+        <label for="unidi-stream">Open a unidirectional stream</label>
+      </div>
+      <div>
+        <input type="radio" name="sendtype" value="bidi" id="bidi-stream">
+        <label for="bidi-stream">Open a bidirectional stream</label>
+      </div>
+      <input type="button" id="send" name="send" value="Send data"
+             disabled onclick="sendData()">
+      </form>
+    </div>
+    <div>
+      <h2>Event log</h2>
+      <ul id="event-log">
+      </ul>
+    </div>
+    </div>
+  </div>
+  </body>
+</html>
