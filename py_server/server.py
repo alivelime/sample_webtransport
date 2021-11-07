@@ -85,11 +85,15 @@ from aioquic.h3.connection import H3_ALPN, H3Connection
 from aioquic.h3.events import H3Event, HeadersReceived, WebTransportStreamDataReceived, DatagramReceived
 from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.connection import stream_is_unidirectional
-from aioquic.quic.events import ProtocolNegotiated, StreamReset, QuicEvent
+from aioquic.quic.events import ProtocolNegotiated, StreamReset, QuicEvent, ConnectionTerminated, StreamDataReceived
+from aioquic.quic.logger import QuicLogger
+
+from pprint import pprint
 
 BIND_ADDRESS = '::1'
 BIND_PORT = 4433
 
+quic_logger = QuicLogger()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -141,13 +145,13 @@ class CounterHandler:
 # responses to an extended CONNECT method request, and routes the transport
 # events to a relevant handler (in this example, CounterHandler).
 class WebTransportProtocol(QuicConnectionProtocol):
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._http: Optional[H3Connection] = None
         self._handler: Optional[CounterHandler] = None
 
     def quic_event_received(self, event: QuicEvent) -> None:
+        pprint(event);
         if isinstance(event, ProtocolNegotiated):
             self._http = H3Connection(self._quic, enable_webtransport=True)
         elif isinstance(event, StreamReset) and self._handler is not None:
@@ -155,6 +159,12 @@ class WebTransportProtocol(QuicConnectionProtocol):
             # abnormal (resets).  FIN is handled by the handler; the code
             # below handles the resets.
             self._handler.stream_closed(event.stream_id)
+        elif isinstance(event, StreamDataReceived):
+            if event.end_stream is True:
+                pprint(quic_logger.to_dict())
+        elif isinstance(event, ConnectionTerminated):
+            # WebTransportをcloseしてもすぐにはコネクションは切断されない?
+            print("terminated!")
 
         if self._http is not None:
             for h3_event in self._http.handle_event(event):
@@ -209,6 +219,7 @@ if __name__ == '__main__':
         alpn_protocols=H3_ALPN,
         is_client=False,
         max_datagram_frame_size=65536,
+        quic_logger=quic_logger,
     )
     configuration.load_cert_chain(args.certificate, args.key)
 

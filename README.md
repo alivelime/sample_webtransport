@@ -53,4 +53,9 @@ $ python3 -m http.server
 /Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary \
     --origin-to-force-quic-on=localhost:4433 \
     --ignore-certificate-errors-spki-list=[fingerprint]
+
+# or Chrome Dev
+/Applications/Google\ Chrome\ Dev.app/Contents/MacOS/Google\ Chrome\ Dev \
+    --origin-to-force-quic-on=localhost:4433 \
+    --ignore-certificate-errors-spki-list=[fingerprint]
 ```

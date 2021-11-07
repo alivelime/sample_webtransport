@@ -3,6 +3,17 @@
 
 let wt, streamNumber, datagramWriter;
 
+function disconnect() {
+  if (wt) {
+    wt.close();
+    wt = null;
+    setUIStart();
+  }
+}
+window.addEventListener('unload', (event) => {
+  disconnect();
+})
+
 async function connect() {
   try {
     const url = document.getElementById("url").value;
@@ -155,10 +166,12 @@ function addToEventLog(text, severity = 'info') {
 }
 function setUIStart() {
   document.forms.sending.elements.send.disabled = true;
-  document.getElementById('connect').disabled = false;
+  document.getElementById('connect').style.display = 'inline';
+  document.getElementById('close').style.display = 'none';
 }
 function setUIConnected() {
   document.forms.sending.elements.send.disabled = false;
-  document.getElementById('connect').disabled = true;
+  document.getElementById('connect').style.display = 'none';
+  document.getElementById('close').style.display = 'inline';
 }
 
