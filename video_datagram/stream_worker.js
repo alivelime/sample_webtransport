@@ -41,6 +41,7 @@ self.addEventListener('message', async (e) => {
 
 // 動画をフレームごとに送信する。
 async function streamVideo(video) {
+  let datagramWriter = wt_video.datagrams.writable.getWriter();
 
   const frameReader = video.stream.getReader();
   self.postMessage('Start video frame encode.');
@@ -48,7 +49,7 @@ async function streamVideo(video) {
   let encodedFrameCount = 0;
   let encoder = new VideoEncoder({
       output: (chunk) => {
-        // 1フレーム送信する (分割・結合はQUICにお任せする)
+        // 1フレーム送信する (分割・結合は自分でやる)
         if (stopped) {
           return;
         }
@@ -62,7 +63,7 @@ async function streamVideo(video) {
         chunk.copyTo(new DataView(payload, 17));
 
         // フレームを送信する
-        sendBinaryData(wt_video, payload);
+        sendBinaryData(datagramWriter, encodedFrameCount, payload);
 
         if (encodedFrameCount++ % 30 == 0) {
           self.postMessage(`Video Encode 30 frames and send chunk. ${frameCount - encodedFrameCount} ${chunk.type} size ${chunk.byteLength} ${chunk.timestamp} ${chunk.duration}`)
@@ -108,6 +109,8 @@ async function streamVideo(video) {
 }
 
 async function streamAudio(audio) {
+  let datagramWriter = wt_audio.datagrams.writable.getWriter();
+
   const frameReader = audio.stream.getReader();
   self.postMessage('Start audio frame encode.');
   
@@ -128,7 +131,7 @@ async function streamAudio(audio) {
         chunk.copyTo(new DataView(payload, 17));
 
         // フレームを送信する
-        sendBinaryData(wt_audio, payload);
+        sendBinaryData(datagramWriter, encodedFrameCount,  payload);
 
         if (encodedFrameCount++ % 30 == 0) {
           self.postMessage(`Audio Encode 30 frames and send chunk. ${frameCount - encodedFrameCount} size ${chunk.byteLength} ${chunk.timestamp} ${chunk.duration}`)
@@ -171,10 +174,32 @@ async function streamAudio(audio) {
   wt_audio.close();
 }
 
-// バイナリデータを送信する
-async function sendBinaryData(transport, data) {
-  let stream = await transport.createUnidirectionalStream();
-  let writer = stream.getWriter();
-  await writer.write(data);
-  await writer.close();
+// バイナリデータをdatagramで送信する
+async function sendBinaryData(datagramWriter, stream_number, data) {
+  // データフォーマット
+  // stream_number(4)
+  // packet_number(4)
+  // data(n)
+  const size = data.byteLength;
+
+  // 最初にパケット番号0としてデータの長さを送る
+  let header = new ArrayBuffer(4 + 4 + 4);
+  const view = new DataView(header);
+  view.setUint32(0, stream_number);
+  view.setUint32(4, 0); // パケット番号0はデータ全体の長さとする
+  view.setUint32(8, size);
+  datagramWriter.write(header);
+
+  let count = 0;
+  for (let i = 0; i < size; ) {
+    const len = (size > i + 1000) ? 1000 : size - i;
+    let payload = new Uint8Array(8 + len);
+    const view = new DataView(payload.buffer);
+    view.setUint32(0, stream_number);
+    view.setUint32(4, ++count);
+    payload.set(new Uint8Array(data, i, len), 8);
+
+    datagramWriter.write(payload.buffer);
+    i += len;
+  }
 }
