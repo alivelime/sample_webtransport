@@ -30,6 +30,17 @@ self.addEventListener('message', async (e) => {
         self.postMessage('audio Connection closed abruptl.');
       });
 
+    // heartbeat
+    let videoDatagramWriter = wt_video.datagrams.writable.getWriter();
+    let audioDatagramWriter = wt_audio.datagrams.writable.getWriter();
+    setInterval(() => {
+      if (!stopped) {
+        const dummy = new ArrayBuffer(1);
+        videoDatagramWriter.write(dummy);
+        audioDatagramWriter.write(dummy);
+      }
+    }, 100);
+
     streamVideo(video);
     streamAudio(audio);
 
