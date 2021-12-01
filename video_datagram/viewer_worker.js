@@ -39,7 +39,7 @@ self.addEventListener('message', async (e) => {
         videoDatagramWriter.write(dummy);
         audioDatagramWriter.write(dummy);
       }
-    }, 100);
+    }, 1);
 
     streamVideo(video);
     streamAudio(audio);
