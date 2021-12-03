@@ -68,13 +68,15 @@ def broadcast_audio(payload):
     print("send audio " +  str(len(payload)))
     for listener in listeners.values():
         listener['connection'].send_datagram(listener['session_id'], payload)
+        # send_datagram()はキューに入れるだけなのでtransmit()で転送する
+        listener["protocol"].transmit();
 
 class AudioSubscriber:
-    def __init__(self, session_id, http: H3ConnectionWithDatagram) -> None:
+    def __init__(self, session_id, protocol: QuicConnectionProtocol, http: H3ConnectionWithDatagram) -> None:
         # listenersに登録する
         print("add viewer.")
         self._connection_id = http._quic.host_cid
-        listeners[self._connection_id] = {"connection": http, "session_id": session_id}
+        listeners[self._connection_id] = {"protocol": protocol, "connection": http, "session_id": session_id}
 
     def h3_event_received(self, event: H3Event) -> None:
         # 特に何も受け取らない
@@ -110,13 +112,15 @@ def broadcast_video(payload):
     # print("send video " +  str(len(payload)))
     for viewer in viewers.values():
         viewer['connection'].send_datagram(viewer['session_id'], payload)
+        # send_datagram()はキューに入れるだけなのでtransmit()で転送する
+        viewer["protocol"].transmit();
 
 class VideoSubscriber:
-    def __init__(self, session_id, http: H3ConnectionWithDatagram) -> None:
+    def __init__(self, session_id, protocol: QuicConnectionProtocol, http: H3ConnectionWithDatagram) -> None:
         # viewersに登録する
         print("add viewer.")
         self._connection_id = http._quic.host_cid
-        viewers[self._connection_id] = {"connection": http, "session_id": session_id}
+        viewers[self._connection_id] = {"protocol": protocol, "connection": http, "session_id": session_id}
 
     def h3_event_received(self, event: H3Event) -> None:
         # 特に何も受け取らない
@@ -158,12 +162,14 @@ def broadcast_chat(name, comment):
             member['session_id'], is_unidirectional=True)
         member['connection']._quic.send_stream_data(
             stream_id, payload, end_stream=True)
+        member["protocol"].transmit();
 
 class ChatHandler:
 
-    def __init__(self, session_id, http: H3ConnectionWithDatagram) -> None:
+    def __init__(self, session_id, protocol: QuicConnectionProtocol, http: H3ConnectionWithDatagram) -> None:
         self._session_id = session_id
         self._http = http
+        self._protocol = protocol
         self._comments = defaultdict(bytes)
 
     def h3_event_received(self, event: H3Event) -> None:
@@ -183,7 +189,7 @@ class ChatHandler:
 
                     # 通知
                     broadcast_chat('server', data['name'] + 'さんがログインしました')
-                    members[self._http._quic.host_cid] = {'name': data['name'], 'connection': self._http, 'session_id': self._session_id}
+                    members[self._http._quic.host_cid] = {"protocol": self._protocol, 'name': data['name'], 'connection': self._http, 'session_id': self._session_id}
                 elif data['command'] == 'comment':
                     broadcast_chat(members[self._http._quic.host_cid]['name'], data['comment'])
 
@@ -254,7 +260,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
             return
         if path == b"/chat":
             assert(self._handler is None)
-            self._handler = ChatHandler(stream_id, self._http)
+            self._handler = ChatHandler(stream_id, self, self._http)
             self._send_response(stream_id, 200)
         elif path == b"/audio/stream":
             assert(self._handler is None)
@@ -262,7 +268,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
             self._send_response(stream_id, 200)
         elif path == b"/audio/view":
             assert(self._handler is None)
-            self._handler = AudioSubscriber(stream_id, self._http)
+            self._handler = AudioSubscriber(stream_id, self, self._http)
             self._send_response(stream_id, 200)
         elif path == b"/video/stream":
             assert(self._handler is None)
@@ -270,7 +276,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
             self._send_response(stream_id, 200)
         elif path == b"/video/view":
             assert(self._handler is None)
-            self._handler = VideoSubscriber(stream_id, self._http)
+            self._handler = VideoSubscriber(stream_id, self, self._http)
             self._send_response(stream_id, 200)
         else:
             self._send_response(stream_id, 404, end_stream=True)

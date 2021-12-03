@@ -33,13 +33,6 @@ self.addEventListener('message', async (e) => {
     // heartbeat
     let videoDatagramWriter = wt_video.datagrams.writable.getWriter();
     let audioDatagramWriter = wt_audio.datagrams.writable.getWriter();
-    setInterval(() => {
-      if (!stopped) {
-        const dummy = new ArrayBuffer(1);
-        videoDatagramWriter.write(dummy);
-        audioDatagramWriter.write(dummy);
-      }
-    }, 1);
 
     streamVideo(video);
     streamAudio(audio);
@@ -201,7 +194,6 @@ async function readDatagram(transport, onstream) {
       concatFrame(buffer, size, count, stream_number, onstream);
     }
   }
-  let payload = new Uint8Array();
 }
 function concatFrame(buffer, size, count,  stream_number, onstream) {
   const buf = buffer[stream_number];
