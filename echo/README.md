@@ -7,7 +7,7 @@ more info [Qiita]()
 
 # How to run
 
-## Install
+## Install (when use python server)
 
 1. Download Canary
 2. Install OepnSSL
@@ -32,12 +32,28 @@ $ openssl x509 -pubkey -noout -in certificate.pem |
 
 ```shell
 $ pip3 install aioquic
-$ vim /usr/local/lib/python3.9/site-packages/aioquic/h3/connection.p
+```
 
-# fix from
-    H3_DATAGRAM = 0x276
-# to
-    H3_DATAGRAM = 0xffd277
+## Install (when use rust server)
+
+install rust and nss tools.
+
+```
+# first. copy certification file.
+$ mv certificate.key rs_server/
+
+$ docker build -t my_neqop .
+$ make init
+$ docker build
+
+# init nss database.
+$ make cert
+
+# run server.
+$ make run
+
+# (if you need)enter container.
+$ make sh
 ```
 
 ## Launch server and canary

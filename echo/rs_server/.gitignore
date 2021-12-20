@@ -1,0 +1,11 @@
+target/
+dist/
+nss/
+nss_db/
+nspr/
+log/
+neqo/
+
+.bash_history
+certificate.*
+Cargo.lock

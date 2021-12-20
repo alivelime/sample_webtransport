@@ -1,0 +1,4 @@
+ [submodule "neqo"]
+        path = neqo
+        url = /tmp/submod-repo
+        ignore = dirty

@@ -1,0 +1,22 @@
+[package]
+name = "rs_server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+neqo-crypto = { path = "neqo/neqo-crypto" }
+neqo-http3 = { path = "neqo/neqo-http3" }
+neqo-transport = { path = "neqo/neqo-transport" }
+neqo-common = { path = "neqo/neqo-common" }
+
+structopt = "0.3.7"
+regex = "1"
+mio = "0.6.17"
+mio-extras = "2.0.5"
+log = {version = "0.4.0", default-features = false}
+env_logger = "0.8.4"
+qlog = "0.4.0"
+
+[features]
