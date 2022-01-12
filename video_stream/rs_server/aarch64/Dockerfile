@@ -33,16 +33,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=1.57.0 \
-    RUST_TARGET=x86_64-apple-darwin
+    RUST_VERSION=1.57.0
 
 RUN set -eux; \
-    curl -sSLf "https://static.rust-lang.org/rustup/archive/1.20.2/x86_64-unknown-linux-gnu/rustup-init" -o rustup-init; \
-    echo 'e68f193542c68ce83c449809d2cad262cc2bbb99640eb47c58fc1dc58cc30add *rustup-init' | sha256sum -c -; \
+    curl -sSLf "https://static.rust-lang.org/rustup/dist/aarch64-unknown-linux-gnu/rustup-init" -o rustup-init; \
     chmod +x rustup-init; \
     ./rustup-init -y -q --no-modify-path --profile minimal --component rustfmt --component clippy --default-toolchain "$RUST_VERSION"; \
     rm -f rustup-init; \
-    rustup target add "$RUST_TARGET"; \
     chmod -R a+w "$RUSTUP_HOME" "$CARGO_HOME"
 
 ENV USER neqo
