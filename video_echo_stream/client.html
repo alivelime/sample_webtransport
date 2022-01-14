@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <title>WebTransport over HTTP/3 client</title>
+  <meta charset="utf-8">
+  <script src="client.js"></script>
+  <link rel="stylesheet" href="client.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <body>
+  <div id="top">
+    <div id="tool">
+    <h1>WebTransport over HTTP/3 text chat sample</h1>
+    <div id="connection-panel">
+      <h2>Establish WebTransport connection</h2>
+      <div class="input-line">
+      <label for="url">URL:</label>
+      <input type="text" name="url" id="url"
+             value="https://localhost:4433">
+      <input type="button" id="connect" value="Connect" onclick="connect()">
+      </div>
+    </div>
+    <div id="video-panel">
+      <div class="setting">
+        <select id="camera-list"></select>
+        <select id="resolutions" onchange="setResolution()">
+          <option value="240" >320 x 240</option>
+          <option value="480" selected >640 x 480</option>
+          <option value="720" >1280 x 720</option>
+          <option value="1080" >1920 x 1080</option>
+          <option value="2160" >3840 x 2160</option>
+        </select>
+        <select id="video-codec" onchange="setResolution()">
+          <option value="vp8" >vp8</option>
+          <option value="vp9" >vp9</option>
+        </select>
+      </div>
+      <div class="setting">
+        <select id="mic-list"></select>
+        <select id="audio-codec" onchange="setResolution()">
+          <option value="opus" >opus</option>
+        </select>
+      </div>
+      <div class="player-container">
+        <video id="camera" class="video" muted></video>
+        <button id="controler" class="controler">▶︎</button>
+        <video id="echo" class="video"></video>
+      </div>
+    </div>
+    <div>
+      <h2>Event log</h2>
+      <ul id="event-log">
+      </ul>
+    </div>
+    </div>
+  </div>
+  </body>
+</html>
+
