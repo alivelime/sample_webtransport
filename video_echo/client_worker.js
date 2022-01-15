@@ -1,6 +1,9 @@
 let stopped = false;
 let wt_video = null;
 let wt_audio = null;
+let packet_sent = 0;
+let packet_recv = 0;
+let packet_lost = 0;
 
 self.addEventListener('message', async (e) => {
   const type = e.data.type;
@@ -8,10 +11,10 @@ self.addEventListener('message', async (e) => {
   if (type === "connect") {
     stopped = false;
 
-    const {media: {video, audio}, url} = e.data;
+    const {media: {video, audio}, url, sendtype} = e.data;
 
-    wt_video = new WebTransport(url + '/video/echo');
-    wt_audio = new WebTransport(url + '/audio/echo');
+    wt_video = new WebTransport(`${url}/video/echo/${sendtype}`);
+    wt_audio = new WebTransport(`${url}/audio/echo/${sendtype}`);
     await wt_video.ready;
     await wt_audio.ready;
     wt_video.closed.then(() => {
@@ -28,8 +31,8 @@ self.addEventListener('message', async (e) => {
       });
     // 送信のみなのでストリームの受け入れは不要
 
-    sendVideo(video);
-    sendAudio(audio);
+    sendVideo(video, sendtype);
+    sendAudio(audio, sendtype);
     return;
   }
   if (type === "stop") {
@@ -41,7 +44,8 @@ self.addEventListener('message', async (e) => {
 }, false)
 
 // encode video and send frame.
-async function sendVideo(video) {
+async function sendVideo(video, sendtype) {
+  let datagramWriter = wt_video.datagrams.writable.getWriter();
 
   const frameReader = video.sendStream.getReader();
   self.postMessage('Start video frame encode.');
@@ -63,7 +67,10 @@ async function sendVideo(video) {
         chunk.copyTo(new DataView(payload, 17));
 
         // フレームを送信する
-        sendBinaryData(wt_video, payload);
+        (sendtype === 'stream'
+          ? sendStream(wt_video, payload)
+          : sendDatagram(datagramWriter, encodedFrameCount, payload)
+        );
 
         if (encodedFrameCount++ % 30 == 0) {
           // self.postMessage(`Video Encode 30 frames and send chunk. ${frameCount - encodedFrameCount} ${chunk.type} size ${chunk.byteLength} ${chunk.timestamp} ${chunk.duration}`)
@@ -80,7 +87,7 @@ async function sendVideo(video) {
     latencyMode: "realtime",
   });
 
-  recvVideo(video);
+  recvVideo(video, sendtype);
   let frameCount = 0;
   try {
     while(true) {
@@ -108,7 +115,9 @@ async function sendVideo(video) {
   wt_video.close();
 }
 
-async function sendAudio(audio) {
+async function sendAudio(audio, sendtype) {
+  let datagramWriter = wt_audio.datagrams.writable.getWriter();
+
   const frameReader = audio.sendStream.getReader();
   self.postMessage('Start audio frame encode.');
   
@@ -130,7 +139,10 @@ async function sendAudio(audio) {
         chunk.copyTo(new DataView(payload, 17));
 
         // フレームを送信する
-        sendBinaryData(wt_audio, payload);
+        (sendtype === 'stream'
+          ? sendStream(wt_audio, payload)
+          : sendDatagram(datagramWriter, encodedFrameCount,  payload)
+        );
 
         if (encodedFrameCount++ % 30 == 0) {
           // self.postMessage(`Audio Encode 30 frames and send chunk. ${frameCount - encodedFrameCount} size ${chunk.byteLength} ${chunk.timestamp} ${chunk.duration}`)
@@ -146,7 +158,7 @@ async function sendAudio(audio) {
     sampleRate: 48000, // audioCtx.sampleRate,
   });
 
-  recvAudio(audio);
+  recvAudio(audio, sendtype);
   let frameCount = 0;
   try {
     while(true) {
@@ -175,7 +187,7 @@ async function sendAudio(audio) {
 }
 
 // ビデオを取得してデコードする
-async function recvVideo(video) {
+async function recvVideo(video, sendtype) {
     let wait_keyframe = true;
 
     // デコーダーの準備
@@ -207,7 +219,7 @@ async function recvVideo(video) {
     });
     
     // ストリームを受け付ける
-    acceptUnidirectionalStreams(wt_video, (payload) => {
+    const onframe =  (payload) => {
       // 動画をフレームごとに受信する。
 
       // payloadからデータを復元する
@@ -222,28 +234,33 @@ async function recvVideo(video) {
       });
       
      if (frameCount++ % 30 == 0) {
-        self.postMessage(`Video: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
+        self.postMessage(`Video: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
       }
       // key frameが来るまで読み飛ばす
       if (wait_keyframe && type === 1) {
         self.postMessage(`Video: Received key frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
         wait_keyframe = false;
       }
-      if (!wait_keyframe && (frameCount - decodedFrameCount < 10)) {
+      if (!wait_keyframe && (frameCount - decodedFrameCount < 30)) {
         try {
           decoder.decode(chunk);
         } catch(e) {
           onerror(e);
         }
       } else {
-        // skip frame
+        // skip frame and wait next key frame.
         console.log(`skip frame ${wait_keyframe} ${frameCount} ${decodedFrameCount}`);
-        decodedFrameCount = frameCount;
+        decodedFrameCount++;
+        wait_keyframe = true;
       }
-    });
+    };
+    (sendtype === 'stream'
+      ? acceptUnidirectionalStreams(wt_video, onframe)
+      : readDatagram(wt_video, onframe)
+    );
 }
 
-async function recvAudio(audio) {
+async function recvAudio(audio, sendtype) {
   let wait_keyframe = true;
 
   // デコーダーの準備
@@ -281,7 +298,7 @@ async function recvAudio(audio) {
   });
     
     // ストリームを受け付ける
-    acceptUnidirectionalStreams(wt_audio, (payload) => {
+    const onframe = (payload) => {
       // 音声をフレームごとに受信する。
 
       // payloadからデータを復元する
@@ -296,35 +313,69 @@ async function recvAudio(audio) {
       });
       
      if (frameCount++ % 30 == 0) {
-        self.postMessage(`Audio: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
+        self.postMessage(`Audio: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
       }
       if (wait_keyframe && type === 1) {
         self.postMessage(`Audio: Received key frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
         wait_keyframe = false;
       }
-      if (!wait_keyframe && (frameCount - decodedFrameCount < 10)) {
+      if (!wait_keyframe && (frameCount - decodedFrameCount < 30)) {
         try {
           decoder.decode(chunk);
         } catch(e) {
           onerror(e);
         }
       } else {
-        // skip frame
-        decodedFrameCount = frameCount;
+        // skip frame and wait next key frame.
+        decodedFrameCount++;
+        wait_keyframe = true;
       }
-    });
+    };
+    (sendtype === 'stream'
+      ? acceptUnidirectionalStreams(wt_audio, onframe)
+      : readDatagram(wt_audio, onframe)
+    );
 }
 
 // バイナリデータを送信する
-async function sendBinaryData(transport, data) {
+async function sendStream(transport, data) {
   let stream = await transport.createUnidirectionalStream();
   let writer = stream.getWriter();
   await writer.write(data);
   await writer.close();
 }
+async function sendDatagram(datagramWriter, stream_number, data) {
+  // データフォーマット
+  // stream_number(4)
+  // packet_number(4)
+  // data(n)
+  const size = data.byteLength;
+
+  // 最初にパケット番号0としてデータの長さを送る
+  let header = new ArrayBuffer(4 + 4 + 4);
+  const view = new DataView(header);
+  view.setUint32(0, stream_number);
+  view.setUint32(4, 0); // パケット番号0はデータ全体の長さとする
+  view.setUint32(8, size);
+  datagramWriter.write(header);
+
+  let count = 0;
+  for (let i = 0; i < size; ) {
+    const len = (size > i + 1000) ? 1000 : size - i;
+    let payload = new Uint8Array(8 + len);
+    const view = new DataView(payload.buffer);
+    view.setUint32(0, stream_number);
+    view.setUint32(4, ++count);
+    payload.set(new Uint8Array(data, i, len), 8);
+
+    datagramWriter.write(payload.buffer);
+    i += len;
+  }
+  packet_sent += count;
+}
 
 // ストリームを受け付ける
-async function acceptUnidirectionalStreams(transport, onstream) {
+async function acceptUnidirectionalStreams(transport, onframe) {
   let reader = transport.incomingUnidirectionalStreams.getReader();
   try {
     while (true) {
@@ -334,14 +385,14 @@ async function acceptUnidirectionalStreams(transport, onstream) {
         return;
       }
       let stream = value;
-      await readFromIncomingStream(stream, onstream);
+      await readFromIncomingStream(stream, onframe);
     }
   } catch (e) {
     self.postMessage('Error while accepting streams: ' + e);
   }
 }
 // データを読み込む
-async function readFromIncomingStream(stream, onstream) {
+async function readFromIncomingStream(stream, onframe) {
   let reader = stream.getReader();
   let payload = new Uint8Array();
   let count = 0, length = 0;
@@ -358,7 +409,7 @@ async function readFromIncomingStream(stream, onstream) {
         return;
       }
       // 細かい処理はコールバックでやる
-      onstream(payload.buffer);
+      onframe(payload.buffer);
       return;
     }
     count++; length += value.byteLength;
@@ -368,3 +419,100 @@ async function readFromIncomingStream(stream, onstream) {
     payload = buffer;
   }
 }
+// データグラムを受け取る
+async function readDatagram(transport, onframe) {
+  let size = new Array(), count = new Array();
+  let buffer = new Array(); // フレームとパケット番号ごとにデータをいれる
+  let reader = transport.datagrams.readable.getReader();
+
+  while (true) {
+    const { value, done } = await reader.read();
+    packet_recv++;
+    if (done) {
+      self.postMessage('Done read datagram.');
+      return;
+    }
+    const data = value;
+
+    // 最初の8バイトを取得して、フレーム番号とパケット番号を取得する
+    let view = new DataView(data.buffer);
+    const frame_number = view.getUint32(0);
+    const packet_number = view.getUint32(4);
+
+    // 初めての来たフレームデータなら、バッファを初期化する
+    if (!(frame_number in  buffer)) {
+      buffer[frame_number] = new Array();
+      size[frame_number] = 0; // 最初はフレームの全体の長さがわからない
+      count[frame_number] = 0
+    }
+
+    // 最初のパケットにはデータの長さを入れてある
+    if (packet_number === 0) {
+      size[frame_number] = view.getUint32(8);
+      // console.log(`${frame_number} ${packet_number} ${size[frame_number]}`);
+      continue;
+    }
+
+    buffer[frame_number][packet_number-1] = data.slice(8); // フレーム番号とパケット番号を除いた残りのデータ全てコピーする
+    count[frame_number] += data.byteLength - 8
+    
+    // フレームのデータが全部揃ったら処理をする(データが全部来なかった時のことはとりあえず考えない)
+    // console.log(`${frame_number} ${packet_number} ${count[frame_number]}/${size[frame_number]}`);
+    if (size[frame_number] === count[frame_number]) {
+      // console.log(new Date(Date.now()).toISOString() + "stream readed! " + frame_number);
+      
+      // 前のフレームがまだ残っている場合は先に処理してしまう。
+      if (frame_number-1 in buffer) {
+        self.postMessage(`stream ${frame_number - 1} skipped!`);
+        concatFrame(buffer, size, count, frame_number - 1, onframe);
+      }
+      concatFrame(buffer, size, count, frame_number, onframe);
+    }
+  }
+}
+function concatFrame(buffer, size, count,  frame_number, onframe) {
+  const buf = buffer[frame_number];
+  let length = size[frame_number];
+  if (length === undefined || !buf) { 
+      self.postMessage(`skipped frame ${frame_number}`);
+      return; 
+  }
+  // フレームの全体の長さがわからない場合は、欠損率は5%くらいと考える
+  if (length === 0) {
+    length = parseInt(buf.length * 1.05 * 1000);
+  }
+
+    // データを結合する
+    let payload = new Uint8Array(length);
+    let pos = 0;
+    for (let i = 0; pos < length; i++) {
+      try {
+        // データがあればそれを使う。なければ0で埋める
+        if (i in buf) {
+          payload.set(new Uint8Array(buf[i]), pos);
+          pos += buf[i].byteLength;
+        } else {
+          packet_lost++;
+          self.postMessage(`packet lost frame ${frame_number}, packet ${i}. ${packet_lost} ${(packet_lost)/(packet_lost + packet_recv)}`);
+          let dummy = new ArrayBuffer(pos + 1000 < length ? 1000 : length - pos); 
+          pos += dummy.byteLength;
+          payload.set(new Uint8Array(dummy), pos);
+        }
+      } catch(e) {
+        console.log(e);
+        console.log(`${i} ${length} ${pos}`);
+        if (i > 10000) {
+          throw 'aa';
+        }
+      }
+    }
+
+    // データを処理する
+    onframe(payload.buffer);
+
+    // 使い終わったバッファは削除する
+    delete buffer[frame_number];
+    delete size[frame_number];
+    delete count[frame_number];
+}
+

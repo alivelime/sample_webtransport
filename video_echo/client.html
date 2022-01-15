@@ -8,19 +8,27 @@
   <body>
   <div id="top">
     <div id="tool">
-    <h1>WebTransport over HTTP/3 text chat sample</h1>
+    <h1>WebTransport over HTTP/3 video echo sample</h1>
     <div id="connection-panel">
       <h2>Establish WebTransport connection</h2>
       <div class="input-line">
       <label for="url">URL:</label>
       <input type="text" name="url" id="url"
-             value="https://localhost:4433">
+             value="https://demo-webtrans.tokishirazu.llc:4433">
       <input type="button" id="connect" value="Connect" onclick="connect()">
       </div>
     </div>
     <div id="video-panel">
       <div class="setting">
-        <select id="camera-list"></select>
+        <form name="sending">
+          <input checked type="radio" id="datagram" name="sendtype" value="datagram" />
+          <label for="datagram">datagram</label>
+          <input type="radio" id="stream" name="sendtype" value="stream" />
+          <label for="stream">stream</label>
+        </form>
+      </div>
+      <div class="setting">
+        <select id="camera-list" disabled></select>
         <select id="resolutions" onchange="setResolution()">
           <option value="240" >320 x 240</option>
           <option value="480" selected >640 x 480</option>
@@ -28,15 +36,21 @@
           <option value="1080" >1920 x 1080</option>
           <option value="2160" >3840 x 2160</option>
         </select>
-        <select id="video-codec" onchange="setResolution()">
+        <select id="video-codec">
           <option value="vp8" >vp8</option>
-          <option value="vp9" >vp9</option>
+          <option value="vp09.02.10.10.01.09.16.09.01" >vp9</option>
+          <option value="avc1.64001E" >H264</option>
+          <option value="av01.0.15M.10" >AV1</option>
         </select>
       </div>
       <div class="setting">
-        <select id="mic-list"></select>
-        <select id="audio-codec" onchange="setResolution()">
-          <option value="opus" >opus</option>
+        <select id="mic-list" disabled></select>
+        <select id="audio-codec">
+          <option value="opus" >Opus</option>
+          <option value="flac" >Flac</option>
+          <option value="mp3" >MP3</option>
+          <option value="vorbis" >Vorbis</option>
+          <option value="mp4a.40.2" >MPEG-4 AAC LC</option>
         </select>
       </div>
       <div class="player-container">

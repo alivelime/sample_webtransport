@@ -22,7 +22,7 @@ from typing import Dict, Optional, Any
 
 from aioquic.asyncio import QuicConnectionProtocol, serve
 from aioquic.h3.connection import H3_ALPN, H3Connection, Setting
-from aioquic.h3.events import H3Event, HeadersReceived, WebTransportStreamDataReceived, DataReceived
+from aioquic.h3.events import H3Event, HeadersReceived, WebTransportStreamDataReceived, DatagramReceived, DataReceived
 from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.connection import stream_is_unidirectional
 from aioquic.quic.events import ProtocolNegotiated, StreamReset, QuicEvent
@@ -61,7 +61,7 @@ class H3ConnectionWithDatagram(H3Connection):
         settings[ENABLE_CONNECT_PROTOCOL] = 1
         return settings
 
-class AudioEcho:
+class AudioEchoStream:
 
     def __init__(self, session_id, http: H3ConnectionWithDatagram) -> None:
         self._session_id = session_id
@@ -91,7 +91,7 @@ class AudioEcho:
         # 特に何もする必要はない
         return
 
-class VideoEcho:
+class VideoEchoStream:
 
     def __init__(self, session_id, http: H3ConnectionWithDatagram) -> None:
         self._session_id = session_id
@@ -109,6 +109,54 @@ class VideoEcho:
 
             if event.stream_ended:
                 self.stream_closed(event.stream_id)
+
+    def stream_closed(self, stream_id) -> None:
+        try:
+            del self._echo_stream_id[stream_id]
+        except KeyError:
+            pass
+
+    def session_closed(self) -> None:
+        # ビデオ送信がストップされた
+        # 特に何もする必要はない
+        return
+
+class AudioEchoDatagram:
+
+    def __init__(self, session_id, http: H3ConnectionWithDatagram, protocol: QuicConnectionProtocol) -> None:
+        self._session_id = session_id
+        self._http = http
+        self._protocol = protocol
+
+    def h3_event_received(self, event: H3Event) -> None:
+        if isinstance(event, DatagramReceived):
+            # やってきたデータをそのまま流す
+            self._http.send_datagram(self._session_id, event.data)
+            self._protocol.transmit()
+
+    def stream_closed(self, stream_id) -> None:
+        try:
+            del self._echo_stream_id[stream_id]
+        except KeyError:
+            pass
+
+    def session_closed(self) -> None:
+        # 音声送信がストップされた
+        # 特に何もする必要はない
+        return
+
+class VideoEchoDatagram:
+
+    def __init__(self, session_id, http: H3ConnectionWithDatagram, protocol: QuicConnectionProtocol) -> None:
+        self._session_id = session_id
+        self._http = http
+        self._protocol = protocol
+
+    def h3_event_received(self, event: H3Event) -> None:
+        if isinstance(event, DatagramReceived):
+            # やってきたデータをそのまま流す
+            self._http.send_datagram(self._session_id, event.data)
+            self._protocol.transmit()
 
     def stream_closed(self, stream_id) -> None:
         try:
@@ -172,13 +220,21 @@ class WebTransportProtocol(QuicConnectionProtocol):
             # `:authority` and `:path` must be provided.
             self._send_response(stream_id, 400, end_stream=True)
             return
-        elif path == b"/audio/echo":
+        elif path == b"/audio/echo/stream":
             assert(self._handler is None)
-            self._handler = AudioEcho(stream_id, self._http)
+            self._handler = AudioEchoStream(stream_id, self._http)
             self._send_response(stream_id, 200)
-        elif path == b"/video/echo":
+        elif path == b"/video/echo/stream":
             assert(self._handler is None)
-            self._handler = VideoEcho(stream_id, self._http)
+            self._handler = VideoEchoStream(stream_id, self._http)
+            self._send_response(stream_id, 200)
+        elif path == b"/audio/echo/datagram":
+            assert(self._handler is None)
+            self._handler = AudioEchoDatagram(stream_id, self._http, self)
+            self._send_response(stream_id, 200)
+        elif path == b"/video/echo/datagram":
+            assert(self._handler is None)
+            self._handler = VideoEchoDatagram(stream_id, self._http, self)
             self._send_response(stream_id, 200)
         else:
             self._send_response(stream_id, 404, end_stream=True)

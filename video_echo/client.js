@@ -1,14 +1,13 @@
 
 // control button callback
-let start_callback = () => {};
-let stop_callback = () => {};
+let start = () => {};
+let stop = () => {};
 
 // "Connect" button handler.
 async function connect() {
   await initDevice();
 
-  let url = document.getElementById('url').value;
-  url = 'https://demo-webtrans.tokishirazu.llc:4433';
+  const url = document.getElementById('url').value;
 
   // video用の web worker を作成し、再生と停止イベントを登録する
   worker = new Worker("./client_worker.js");
@@ -19,7 +18,7 @@ async function connect() {
   }, false);
 
   // 開始ボタンを押したらストリームを開始する。停止したらストリーム配信も止める
-  start_callback = () => {
+  start = () => {
     const [videoTrack] = document.getElementById('camera').captureStream().getVideoTracks();
     const [audioTrack] = document.getElementById('camera').captureStream().getAudioTracks();
     const videoProcessor = new MediaStreamTrackProcessor(videoTrack);
@@ -47,7 +46,8 @@ async function connect() {
         codec: document.getElementById('audio-codec').value,
       },
     };
-    worker.postMessage({ type: "connect", url, media}, [sendVideoStream, sendAudioStream, recvVideoStream, recvAudioStream]);
+    const sendtype = document.forms.sending.elements.sendtype.value;
+    worker.postMessage({ type: "connect", sendtype, url, media}, [sendVideoStream, sendAudioStream, recvVideoStream, recvAudioStream]);
 
     // ストリームをビデオタグに設定する
     const stream = new MediaStream();
@@ -59,10 +59,15 @@ async function connect() {
 
     setUIStarted();
   };
-  stop_callback = () => {
+  stop = () => {
     worker.postMessage({ type: "stop" });
     setUIStopped();
   };
+
+  // set connection close on window closed or reload.
+  window.addEventListener('unload', (event) => {
+    worker.postMessage({ type: "stop" });
+  })
 
   setUIStopped();
   setUIConnected();
@@ -120,12 +125,12 @@ function setUIConnected() {
 }
 function setUIStarted() {
   const controler = document.getElementById('controler');
-  controler.onclick = stop_callback;
+  controler.onclick = stop;
   controler.textContent = '■';
 }
 function setUIStopped(callback) {
   const controler = document.getElementById('controler');
-  controler.onclick = start_callback;
+  controler.onclick = start;
   controler.textContent = '▶︎';
 }
 
