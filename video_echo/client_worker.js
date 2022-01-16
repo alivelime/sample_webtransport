@@ -58,13 +58,14 @@ async function sendVideo(video, sendtype) {
           return;
         }
 
-        // header(17) = type(1byte) + timestamp(8) + duration(8)
-        let payload = new ArrayBuffer(17 + chunk.byteLength);
+        // header(25) = type(1byte) + timestamp(8) + timestamp(8) + duration(8)
+        let payload = new ArrayBuffer(25 + chunk.byteLength);
         const view = new DataView(payload);
         view.setUint8(0, (chunk.type === "key" ? 1 : 2));
-        view.setBigInt64(1, BigInt(chunk.timestamp)); // 仕様では long long だが実際はNumber
-        view.setBigUint64(9, BigInt(chunk.duration)); // 仕様では unsigned long long だが実際はNumber
-        chunk.copyTo(new DataView(payload, 17));
+        view.setBigInt64(1, BigInt(Date.now()));
+        view.setBigInt64(9, BigInt(chunk.timestamp)); // 仕様では long long だが実際はNumber
+        view.setBigUint64(17, BigInt(chunk.duration)); // 仕様では unsigned long long だが実際はNumber
+        chunk.copyTo(new DataView(payload, 25));
 
         // フレームを送信する
         (sendtype === 'stream'
@@ -81,7 +82,15 @@ async function sendVideo(video, sendtype) {
       }
     });
   encoder.configure({
-    codec: video.codec,
+    codec: (video.codec === 'vp8' ? 'vp8'
+      : video.codec === 'vp9' ? 'vp09.00.10.08'
+      : video.codec ===  'h264' ? 'avc1.64001E'
+      : 'vp8'
+    ),
+    avc: (video.codec === 'h264'
+      ? { format: "annexb" }
+      : undefined
+    ),
     width: video.width,
     height: video.height,
     latencyMode: "realtime",
@@ -103,7 +112,7 @@ async function sendVideo(video, sendtype) {
         break;
       }
       var frame = value;
-      encoder.encode(frame, {keyFrame: (frameCount % 30 == 0 ? true : false)});
+      encoder.encode(frame, {keyFrame: (frameCount % 150 == 0 ? true : false)});
       frame.close();
      if (frameCount++ % 150 == 0) {
         // self.postMessage(`Read 150 frames. last frame = ${frameCount - encodedFrameCount}`);
@@ -130,13 +139,14 @@ async function sendAudio(audio, sendtype) {
           return;
         }
 
-        // header(17) = type(1byte) + timestamp(8) + duration(8)
-        let payload = new ArrayBuffer(17 + chunk.byteLength);
+        // header(25) = type(1byte) + timestamp(8) + timestamp(8) + duration(8)
+        let payload = new ArrayBuffer(25 + chunk.byteLength);
         const view = new DataView(payload);
         view.setUint8(0, (chunk.type === "key" ? 1 : 2));
-        view.setBigInt64(1, BigInt(chunk.timestamp)); // 仕様では long long だが実際はNumber
-        view.setBigUint64(9, BigInt(chunk.duration)); // 仕様では unsigned long long だが実際はNumber
-        chunk.copyTo(new DataView(payload, 17));
+        view.setBigInt64(1, BigInt(Date.now()));
+        view.setBigInt64(9, BigInt(chunk.timestamp)); // 仕様では long long だが実際はNumber
+        view.setBigUint64(17, BigInt(chunk.duration)); // 仕様では unsigned long long だが実際はNumber
+        chunk.copyTo(new DataView(payload, 25));
 
         // フレームを送信する
         (sendtype === 'stream'
@@ -174,7 +184,7 @@ async function sendAudio(audio, sendtype) {
         break;
       }
       var frame = value;
-      encoder.encode(frame, {keyFrame: (frameCount % 30 == 0 ? true : false)});
+      encoder.encode(frame, {keyFrame: (frameCount % 150 == 0 ? true : false)});
       frame.close();
      if (frameCount++ % 150 == 0) {
         // self.postMessage(`Read 150 frames. last frame = ${frameCount - encodedFrameCount}`);
@@ -208,13 +218,29 @@ async function recvVideo(video, sendtype) {
       console.log(e);
       decoder = newVideoDecoder(frameWriter, onerror);
       decoder.configure({
-        codec: video.codec,
+        codec: (video.codec === 'vp8' ? 'vp8'
+          : video.codec === 'vp9' ? 'vp09.00.10.08'
+          : video.codec ===  'h264' ? 'avc1.64001E'
+          : 'vp8'
+        ),
+        avc: (video.codec === 'h264'
+          ? { format: "annexb" }
+          : undefined
+        ),
         optimizeForLatency: true,
       });
     };
     decoder = newVideoDecoder(frameWriter, onerror);
     decoder.configure({
-      codec: video.codec,
+      codec: (video.codec === 'vp8' ? 'vp8'
+        : video.codec === 'vp9' ? 'vp09.00.10.08'
+        : video.codec ===  'h264' ? 'avc1.64001E'
+        : 'vp8'
+      ),
+      avc: (video.codec === 'h264'
+        ? { format: "annexb" }
+        : undefined
+      ),
       optimizeForLatency: true,
     });
     
@@ -223,22 +249,23 @@ async function recvVideo(video, sendtype) {
       // 動画をフレームごとに受信する。
 
       // payloadからデータを復元する
-      // header(17) = type(1byte) + timestamp(8) + duration(8)
+      // header(25) = type(1byte) + timestamp(8) + duration(8)
       let view = new DataView(payload, 0);
       const type = view.getUint8(0);
+      const latency = Date.now() - Number(view.getBigInt64(1));
       const chunk = new EncodedVideoChunk({
         type: (type === 1 ? 'key' : 'delta'),
-        timestamp: Number(view.getBigInt64(1)), // 仕様では long long だが実際はNumber
-        duration: Number(view.getBigInt64(9)), // 仕様では unsigned long long だが実際はNumber
-        data: new DataView(payload, 17),
+        timestamp: Number(view.getBigInt64(9)), // 仕様では long long だが実際はNumber
+        duration: Number(view.getBigInt64(17)), // 仕様では unsigned long long だが実際はNumber
+        data: new DataView(payload, 25),
       });
       
      if (frameCount++ % 30 == 0) {
-        self.postMessage(`Video: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
+        self.postMessage(`Video: Received 30 frames. latency: ${latency}, last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
       }
       // key frameが来るまで読み飛ばす
       if (wait_keyframe && type === 1) {
-        self.postMessage(`Video: Received key frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
+        self.postMessage(`Video: Received key frames. latency: ${latency}, last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
         wait_keyframe = false;
       }
       if (!wait_keyframe && (frameCount - decodedFrameCount < 30)) {
@@ -302,21 +329,22 @@ async function recvAudio(audio, sendtype) {
       // 音声をフレームごとに受信する。
 
       // payloadからデータを復元する
-      // header(17) = type(1byte) + timestamp(8) + duration(8)
+      // header(25) = type(1byte) + timestamp(8) + timestamp(8) + duration(8)
       let view = new DataView(payload, 0);
       const type = view.getUint8(0);
+      const latency = Date.now() - Number(view.getBigInt64(1));
       const chunk = new EncodedAudioChunk({
         type: (type === 1 ? 'key' : 'delta'),
-        timestamp: Number(view.getBigInt64(1)), // 仕様では long long だが実際はNumber
-        duration: Number(view.getBigInt64(9)), // 仕様では unsigned long long だが実際はNumber
-        data: new DataView(payload, 17),
+        timestamp: Number(view.getBigInt64(9)), // 仕様では long long だが実際はNumber
+        duration: Number(view.getBigInt64(17)), // 仕様では unsigned long long だが実際はNumber
+        data: new DataView(payload, 25),
       });
       
      if (frameCount++ % 30 == 0) {
-        self.postMessage(`Audio: Received 30 frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
+        self.postMessage(`Audio: Received 30 frames. latency: ${latency}, last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration},`);
       }
       if (wait_keyframe && type === 1) {
-        self.postMessage(`Audio: Received key frames. last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
+        self.postMessage(`Audio: Received key frames. latency: ${latency}, last frame = ${frameCount - decodedFrameCount}, size: ${chunk.byteLength}, time: ${chunk.timestamp}, duration: ${chunk.duration}`);
         wait_keyframe = false;
       }
       if (!wait_keyframe && (frameCount - decodedFrameCount < 30)) {
@@ -459,7 +487,6 @@ async function readDatagram(transport, onframe) {
     // フレームのデータが全部揃ったら処理をする(データが全部来なかった時のことはとりあえず考えない)
     // console.log(`${frame_number} ${packet_number} ${count[frame_number]}/${size[frame_number]}`);
     if (size[frame_number] === count[frame_number]) {
-      // console.log(new Date(Date.now()).toISOString() + "stream readed! " + frame_number);
       
       // 前のフレームがまだ残っている場合は先に処理してしまう。
       if (frame_number-1 in buffer) {

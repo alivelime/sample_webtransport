@@ -18,7 +18,7 @@ import argparse
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Callable
 
 from aioquic.asyncio import QuicConnectionProtocol, serve
 from aioquic.h3.connection import H3_ALPN, H3Connection, Setting
@@ -30,6 +30,7 @@ from aioquic.quic.logger import QuicLogger
 
 from pprint import pprint
 import json
+
 
 BIND_ADDRESS = '0.0.0.0'
 BIND_PORT = 4433
@@ -123,22 +124,16 @@ class VideoEchoStream:
 
 class AudioEchoDatagram:
 
-    def __init__(self, session_id, http: H3ConnectionWithDatagram, protocol: QuicConnectionProtocol) -> None:
+    def __init__(self, session_id, http: H3ConnectionWithDatagram, transmit: Callable[[], None]) -> None:
         self._session_id = session_id
         self._http = http
-        self._protocol = protocol
+        self._transmit = transmit
 
     def h3_event_received(self, event: H3Event) -> None:
         if isinstance(event, DatagramReceived):
             # やってきたデータをそのまま流す
             self._http.send_datagram(self._session_id, event.data)
-            self._protocol.transmit()
-
-    def stream_closed(self, stream_id) -> None:
-        try:
-            del self._echo_stream_id[stream_id]
-        except KeyError:
-            pass
+            self._transmit()
 
     def session_closed(self) -> None:
         # 音声送信がストップされた
@@ -147,22 +142,16 @@ class AudioEchoDatagram:
 
 class VideoEchoDatagram:
 
-    def __init__(self, session_id, http: H3ConnectionWithDatagram, protocol: QuicConnectionProtocol) -> None:
+    def __init__(self, session_id, http: H3ConnectionWithDatagram, transmit: Callable[[], None]) -> None:
         self._session_id = session_id
         self._http = http
-        self._protocol = protocol
+        self._transmit = transmit
 
     def h3_event_received(self, event: H3Event) -> None:
         if isinstance(event, DatagramReceived):
             # やってきたデータをそのまま流す
             self._http.send_datagram(self._session_id, event.data)
-            self._protocol.transmit()
-
-    def stream_closed(self, stream_id) -> None:
-        try:
-            del self._echo_stream_id[stream_id]
-        except KeyError:
-            pass
+            self._transmit()
 
     def session_closed(self) -> None:
         # ビデオ送信がストップされた
@@ -230,11 +219,11 @@ class WebTransportProtocol(QuicConnectionProtocol):
             self._send_response(stream_id, 200)
         elif path == b"/audio/echo/datagram":
             assert(self._handler is None)
-            self._handler = AudioEchoDatagram(stream_id, self._http, self)
+            self._handler = AudioEchoDatagram(stream_id, self._http, self.transmit)
             self._send_response(stream_id, 200)
         elif path == b"/video/echo/datagram":
             assert(self._handler is None)
-            self._handler = VideoEchoDatagram(stream_id, self._http, self)
+            self._handler = VideoEchoDatagram(stream_id, self._http, self.transmit)
             self._send_response(stream_id, 200)
         else:
             self._send_response(stream_id, 404, end_stream=True)
