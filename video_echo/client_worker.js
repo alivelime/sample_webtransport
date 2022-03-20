@@ -164,8 +164,8 @@ async function sendAudio(audio, sendtype) {
     });
   encoder.configure({
     codec: audio.codec,
-    numberOfChannels: 1,
-    sampleRate: 48000, // audioCtx.sampleRate,
+    numberOfChannels: audio.numberOfChannels,
+    sampleRate: audio.sampleRate,
   });
 
   recvAudio(audio, sendtype);
@@ -313,15 +313,15 @@ async function recvAudio(audio, sendtype) {
     decoder = newAudioDecoder(audioWriter, onerror);
     decoder.configure({
       codec: audio.codec,
-      numberOfChannels: 1,
-      sampleRate: 48000, // audioCtx.sampleRate,
+      numberOfChannels: audio.numberOfChannels,
+      sampleRate: audio.sampleRate,
     });
   };
   decoder = newAudioDecoder(audioWriter, onerror);
   decoder.configure({
     codec: audio.codec,
-    numberOfChannels: 1,
-    sampleRate: 48000, // audioCtx.sampleRate,
+    numberOfChannels: audio.numberOfChannels,
+    sampleRate: audio.sampleRate,
   });
     
     // ストリームを受け付ける

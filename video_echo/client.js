@@ -31,6 +31,8 @@ async function connect() {
     const recvVideoStream = echoVideoTrack.writable;
     const recvAudioStream = echoAudioTrack.writable;
     
+    console.log(audioTrack.getSettings().channelCount)
+    console.log(audioTrack.getSettings().sampleRate)
     const video = document.getElementById('camera');
     const media = {
       video: {
@@ -43,6 +45,8 @@ async function connect() {
       audio: {
         sendStream: sendAudioStream,
         recvStream: recvAudioStream,
+        numberOfChannels: audioTrack.getSettings().channelCount,
+        sampleRate: audioTrack.getSettings().sampleRate,
         codec: document.getElementById('audio-codec').value,
       },
     };
@@ -97,7 +101,15 @@ async function initDevice() {
   }
 }
 async function getCamera(height) {
-  const stream = await navigator.mediaDevices.getUserMedia({video: {height}, audio: true});
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {height},
+    audio: {
+      echoCancellation: true,
+      noiseSuppression : false,
+      // echoCancellationType: 'system',
+    },
+  });
+  console.log(stream.getAudioTracks()[0].getSettings());
   const player = document.getElementById('camera');
   player.srcObject = stream;
   player.play();

@@ -1,14 +1,13 @@
 # WebTransport examples
 
-This repository is WebTransport samples.
+This repository is WebTransport and WebCodecs samples.
 
-more info [Qiita]()https://qiita.com/alivelime/items/ebf6da9ce2b929ec2251
+more info [Qiita](https://qiita.com/alivelime/items/70d06a2bb8da697066ff)
 
 # feature
 
-- text echo.
-- text broadcast.
-- video broadcast
-- audio broadcast
-- video echo
-
+- text echo
+- text broadcast
+- video broadcast : old?
+- audio broadcast : old?
+- video echo : 2022/03/20 maintained.
