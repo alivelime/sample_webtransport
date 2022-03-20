@@ -154,6 +154,10 @@ function addToEventLog(text, severity = 'info') {
   entry.className = 'log-' + severity;
   log.appendChild(entry);
 
+  if (log.childElementCount >= 100) {
+    log.removeChild(log.firstChild)
+  }
+
   // If the most recent entry in the log was visible, scroll the log to the
   // newly added element.
   if (mostRecentEntry != null &&

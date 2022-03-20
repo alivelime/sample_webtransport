@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -397,7 +398,6 @@ func (c *DatagramEcho) read() {
 			log.Println(err)
 			break
 		}
-		log.Println(len(msg))
 
 		// echo
 		{
@@ -455,29 +455,19 @@ func (c *StreamEcho) read() {
 				log.Println(err)
 				return
 			}
-      log.Printf("open %d stream.", res.StreamID())
-      defer res.Close()
+			log.Printf("open %d stream.", res.StreamID())
+			defer res.Close()
 
 			h := &bytes.Buffer{}
 			quicvarint.Write(h, STREAM_TYPE_WEBTRANSPORT_UNI)
 			quicvarint.Write(h, uint64(sid))
 			res.Write(h.Bytes())
 
-			for {
-
-				buf := make([]byte, 1024)
-				_, err := stream.Read(buf)
-				if err != nil {
-					log.Println(err)
-					return
-				}
-//				log.Printf("read stream id %d, %d byte.", stream.StreamID(), n)
-
-				// echo
-				{
-					res.Write(buf)
-				}
+			buf, err := ioutil.ReadAll(stream)
+			if err != nil {
+				log.Println(err)
 			}
+			res.Write(buf)
 		}(stream)
 	}
 }
