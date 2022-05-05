@@ -1,0 +1,12 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.timer {
+  font-size: 3em;
+  margin-left: 50%;
+}
+input[type="text"] {
+  width: 20%;
+}

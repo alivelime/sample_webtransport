@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebCodec MP4 frame extration demo</title>
+  <meta charset="utf-8">
+  <script src="index.js"></script>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div>host : <input type="text" id="host" value="https://demo-webtrans.tokishirazu.llc:4433" /></div>
+  <div>delay : <input type="text" id="delay" value="550"/><br />(スタートボタンを押してから何ms後に再生を開始するか。動画と音声の受信完了タイミングを調整するまでの暫定設定)</div>
+  <p>
+    <button onClick="start()" style="font-size: 3em;">start</button>
+  </p>
+  <div class="container">
+    <video></video>
+    <div id="timer" class="timer"></div>
+  </div>
+</body>

@@ -1,4 +1,7 @@
 *.pem
 *.key
 *.mp4
+*.ttf
+media
+echo
 .DS_Store
